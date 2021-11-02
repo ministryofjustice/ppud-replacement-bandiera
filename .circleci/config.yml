@@ -1,0 +1,196 @@
+---
+version: 2.1
+
+orbs:
+  hmpps: ministryofjustice/hmpps@3.11
+  slack: circleci/slack@4.4
+
+parameters:
+  alerts-slack-channel:
+    type: string
+    default: ppud-replacement-devs
+
+jobs:
+  deploy:
+    executor:
+      name: hmpps/default_small
+    steps:
+      - checkout
+      - hmpps/k8s_setup
+      - hmpps/install_helm
+      - hmpps/install_aws_cli
+      - hmpps/create_app_version
+      - deploy:
+          name: Deploy to kubernetes
+          working_directory: helm_deploy
+          command: |
+            export RELEASE_NAME=ppud-replacement-bandiera
+            export CHART_NAME=ppud-replacement-bandiera
+            export ENV_NAME=dev
+            export CHART_VERSION="${APP_VERSION}"
+
+            # put the app version into the helm chart meta
+            sed -i "s/appVersion:.*/appVersion: \"${APP_VERSION}\"/g" "${CHART_NAME}/Chart.yaml"
+
+            helm dependency update "${CHART_NAME}"
+
+            helm \
+              upgrade \
+              "${RELEASE_NAME}" \
+              "${CHART_NAME}" \
+              --wait \
+              --install \
+              --reset-values \
+              --timeout 5m \
+              --history-max 10 \
+              --values "values-${ENV_NAME}.yaml"
+
+  trivy_scan:
+    executor:
+      name: hmpps/default
+    steps:
+      - checkout
+      - setup_remote_docker
+      - hmpps/install_trivy
+      - restore_cache: &restore_cache
+          key: trivy_cache_v1
+      - run: &figure_out_image
+          name: Figure out the image to test...
+          working_directory: helm_deploy/ppud-replacement-bandiera
+          command: |
+            export IMAGE=$(yq e '.generic-service.image.repository' values.yaml)
+            export TAG=$(yq e '.generic-service.image.tag' values.yaml)
+            echo "export IMAGE=$IMAGE" >> $BASH_ENV
+            echo "export TAG=$TAG" >> $BASH_ENV
+      - run: &pull_image
+          name: Pull the container image
+          command: |
+            docker pull "$IMAGE:$TAG"
+      - run: &trivy_scan
+          name: Trivy scan for HIGH,CRITICAL CVEs
+          command: |
+            /tmp/trivy \
+              --cache-dir .trivy \
+              image \
+              --exit-code 100 \
+              --no-progress \
+              --severity HIGH,CRITICAL \
+              --ignore-unfixed \
+              --skip-dirs /usr/local/lib/ruby/gems \
+              "$IMAGE:$TAG"
+      - save_cache: &save_cache
+          key: trivy_cache_v1
+          paths:
+            - .trivy
+
+  trivy_scan_nightly:
+    executor:
+      name: hmpps/default
+    parameters:
+      slack_channel:
+        type: string
+    steps:
+      - checkout
+      - setup_remote_docker
+      - hmpps/install_trivy
+      - restore_cache:
+          <<: *restore_cache
+      - run:
+          <<: *figure_out_image
+      - run:
+          <<: *pull_image
+      - run:
+          <<: *trivy_scan
+      - save_cache:
+          <<: *save_cache
+      - run:
+          when: on_fail
+          name: Get Trivy results formatted for slack
+          command: |
+            /tmp/trivy \
+              --cache-dir .trivy \
+              image \
+              --exit-code 100 \
+              --no-progress \
+              --severity HIGH,CRITICAL \
+              --ignore-unfixed \
+              --skip-dirs /usr/local/lib/ruby/gems \
+              --output results.txt \
+              --format template \
+              --template "$(cat .circleci/trivy.tpl)" \
+              "$IMAGE:$TAG"
+      - hmpps/slack_message_results:
+          file: results.txt
+      - slack/notify:
+          event: fail
+          channel: << parameters.slack_channel >>
+          custom: |
+            {
+              "blocks": [
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": ":circleci-${CCI_STATUS}: CircleCI job *${CIRCLE_JOB}* ${CCI_STATUS}"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*${CIRCLE_PROJECT_REPONAME}* failed ${CIRCLE_JOB}"
+                  },
+                  "accessory": {
+                    "type": "button",
+                    "text": {
+                      "type": "plain_text",
+                      "text": "View job"
+                    },
+                    "url": "${CIRCLE_BUILD_URL}"
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "${SLACK_TXT+```}${SLACK_TXT:-No output, view job for details.}${SLACK_TXT+```}"
+                    }
+                  ]
+                },
+                {
+                  "type": "divider"
+                }
+              ]
+            }
+
+workflows:
+  deploy:
+    jobs:
+      - trivy_scan
+
+      - deploy:
+          requires:
+            - trivy_scan
+          context:
+            - hmpps-common-vars
+          filters:
+            branches:
+              only:
+                - main
+
+  security:
+    triggers:
+      - schedule:
+          cron: "3 5 * * 1-5"
+          filters:
+            branches:
+              only:
+                - main
+    jobs:
+      - trivy_scan_nightly:
+          context:
+            - hmpps-common-vars
+          slack_channel: << pipeline.parameters.alerts-slack-channel >>
