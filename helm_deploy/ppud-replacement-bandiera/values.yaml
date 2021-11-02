@@ -9,6 +9,14 @@ generic-service:
     tag: 3.5.11
     port: 5000
 
+  securityContext:
+    capabilities:
+      drop:
+      - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+
   ingress:
     enabled: true
     host: app-hostname.local     # override per environment
