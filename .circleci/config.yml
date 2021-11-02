@@ -39,10 +39,52 @@ jobs:
               --history-max 10 \
               --values "values-${ENV_NAME}.yaml"
 
+  trivy_scan:
+    executor:
+      name: hmpps/default
+    steps:
+      - checkout
+      - setup_remote_docker
+      - hmpps/install_trivy
+      - restore_cache:
+          key: trivy_cache_v1
+      - run:
+          name: Figure out the image to test...
+          working_directory: helm_deploy/ppud-replacement-bandiera
+          command: |
+            export IMAGE=$(yq e '.generic-service.image.repository' values.yaml)
+            export TAG=$(yq e '.generic-service.image.tag' values.yaml)
+            echo "export IMAGE=$IMAGE" >> $BASH_ENV
+            echo "export TAG=$TAG" >> $BASH_ENV
+      - run:
+          name: Pull the container image
+          command: |
+            docker pull "$IMAGE:$TAG"
+      - run:
+          name: Trivy scan for HIGH,CRITICAL CVEs
+          command: |
+            /tmp/trivy \
+              --cache-dir .trivy \
+              image \
+              --exit-code 100 \
+              --no-progress \
+              --severity HIGH,CRITICAL \
+              --ignore-unfixed \
+              --skip-dirs /usr/local/lib/ruby/gems \
+              "$IMAGE:$TAG"
+      - save_cache:
+          key: trivy_cache_v1
+          paths:
+            - .trivy
+
 workflows:
   deploy:
     jobs:
+      - trivy_scan
+
       - deploy:
+          requires:
+            - trivy_scan
           context:
             - hmpps-common-vars
           filters:
