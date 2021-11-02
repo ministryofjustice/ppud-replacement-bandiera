@@ -1,0 +1,39 @@
+---
+generic-service:
+  nameOverride: ppud-replacement-bandiera
+
+  replicaCount: 2
+
+  image:
+    repository: docker.io/dazoakley/bandiera
+    tag: 3.5
+    port: 5000
+
+  ingress:
+    enabled: true
+    host: app-hostname.local     # override per environment
+    tlsSecretName: bandiera-cert # override per environment
+
+  livenessProbe:
+    httpGet:
+      path: /status/live
+
+  readinessProbe:
+    httpGet:
+      path: /status/ready
+
+  # Environment variables to load into the deployment
+  env: {}
+    # SENTRY_DSN:
+
+  # Pre-existing kubernetes secrets to load as environment variables in the deployment.
+  # namespace_secrets:
+  #   [name of kubernetes secret]:
+  #     [name of environment variable as seen by app]: [key of kubernetes secret to load]
+
+  namespace_secrets:
+    bandiera-database:
+      DATABASE_URL: DATABASE_URL
+
+generic-prometheus-alerts:
+  targetApplication: ppud-replacement-bandiera

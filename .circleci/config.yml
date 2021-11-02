@@ -1,0 +1,51 @@
+---
+version: 2.1
+
+orbs:
+  hmpps: ministryofjustice/hmpps@3.11
+
+jobs:
+  deploy:
+    executor:
+      name: hmpps/default_small
+    steps:
+      - checkout
+      - hmpps/k8s_setup
+      - hmpps/install_helm
+      - hmpps/install_aws_cli
+      - hmpps/create_app_version
+      - deploy:
+          name: Deploy to kubernetes
+          working_directory: helm_deploy
+          command: |
+            export RELEASE_NAME=ppud-replacement-bandiera
+            export CHART_NAME=ppud-replacement-bandiera
+            export ENV_NAME=dev
+            export CHART_VERSION="${APP_VERSION}"
+
+            # put the app version into the helm chart meta
+            sed -i "s/appVersion:.*/appVersion: \"${APP_VERSION}\"/g" "${CHART_NAME}/Chart.yaml"
+
+            helm dependency update "${CHART_NAME}"
+
+            helm \
+              upgrade \
+              "${RELEASE_NAME}" \
+              "${CHART_NAME}" \
+              --wait \
+              --install \
+              --reset-values \
+              --timeout 5m \
+              --history-max 10 \
+              --values "values-${ENV_NAME}.yaml"
+
+workflows:
+  deploy:
+    jobs:
+      - deploy:
+          context:
+            - hmpps-common-vars
+          filters:
+            branches:
+              only:
+                - main
