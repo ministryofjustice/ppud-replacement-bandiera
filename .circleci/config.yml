@@ -169,6 +169,9 @@ jobs:
 workflows:
   deploy:
     jobs:
+      - hmpps/helm_lint:
+          name: helm_lint
+
       - trivy_scan
 
       - deploy:
