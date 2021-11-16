@@ -176,6 +176,7 @@ workflows:
 
       - deploy:
           requires:
+            - helm_lint
             - trivy_scan
           context:
             - hmpps-common-vars
