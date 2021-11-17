@@ -19,8 +19,6 @@ generic-service:
 
   ingress:
     enabled: true
-    host: app-hostname.local     # override per environment
-    tlsSecretName: bandiera-cert # override per environment
 
   livenessProbe:
     httpGet:

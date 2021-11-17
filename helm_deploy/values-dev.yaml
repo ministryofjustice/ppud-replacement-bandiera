@@ -1,5 +1,5 @@
 ---
-# Per environment values which override defaults in manage-recalls-ui/values.yaml
+# Per environment values which override defaults in ppud-replacement-bandiera/values.yaml
 
 generic-service:
   replicaCount: 2
