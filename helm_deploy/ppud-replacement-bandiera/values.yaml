@@ -20,7 +20,6 @@ generic-service:
   ingress:
     enabled: true
     annotations:
-      external-dns.alpha.kubernetes.io/aws-weight: "0"
       nginx.ingress.kubernetes.io/auth-type: basic
       nginx.ingress.kubernetes.io/auth-secret: bandiera-basic-auth
       nginx.ingress.kubernetes.io/auth-realm: 'Authentication Required - Bandiera'
