@@ -7,12 +7,6 @@ generic-service:
   ingress:
     host: ppud-replacement-bandiera.hmpps.service.justice.gov.uk
     tlsSecretName: ppud-replacement-dev-cert
-    annotations:
-      nginx.ingress.kubernetes.io/auth-type: basic
-      nginx.ingress.kubernetes.io/auth-secret: bandiera-basic-auth
-      nginx.ingress.kubernetes.io/auth-realm: 'Authentication Required - Bandiera'
-    # which cluster are we on: live-1 is blue, live is green
-    contextColour: blue
 
 
 generic-prometheus-alerts:
