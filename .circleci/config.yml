@@ -185,16 +185,16 @@ workflows:
               only:
                 - main
 
-  security:
-    triggers:
-      - schedule:
-          cron: "3 5 * * 1-5"
-          filters:
-            branches:
-              only:
-                - main
-    jobs:
-      - trivy_scan_nightly:
-          context:
-            - hmpps-common-vars
-          slack_channel: << pipeline.parameters.alerts-slack-channel >>
+  # security:
+  #   triggers:
+  #     - schedule:
+  #         cron: "3 5 * * 1-5"
+  #         filters:
+  #           branches:
+  #             only:
+  #               - main
+  #   jobs:
+  #     - trivy_scan_nightly:
+  #         context:
+  #           - hmpps-common-vars
+  #         slack_channel: << pipeline.parameters.alerts-slack-channel >>
