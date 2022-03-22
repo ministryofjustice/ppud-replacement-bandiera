@@ -172,18 +172,18 @@ workflows:
       - hmpps/helm_lint:
           name: helm_lint
 
-      - trivy_scan
+      # - trivy_scan
 
-      - deploy:
-          requires:
-            - helm_lint
-            - trivy_scan
-          context:
-            - hmpps-common-vars
-          filters:
-            branches:
-              only:
-                - main
+      # - deploy:
+      #     requires:
+      #       - helm_lint
+      #       - trivy_scan
+      #     context:
+      #       - hmpps-common-vars
+      #     filters:
+      #       branches:
+      #         only:
+      #           - main
 
   # security:
   #   triggers:
